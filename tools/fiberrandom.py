@@ -392,7 +392,6 @@ class FiberSample():
         self.dm_img = self.Noise(self.dm_img, 15)
         
         self.diameter_count = {}
-        
             
     def saveDistanceMapSample(self, imgs_dir, masks_dir, index, extension='png', masks_h5=False):
         '''
@@ -516,12 +515,13 @@ class FiberSample():
             
         return sample_lines, sample_curls, sample_instances
 
-    def createSampleAndSkeleton(self):
+    def createSampleAndSkeleton(self, distance_map=False):
         """create a fiber sample (with all fibers joinned) and its skeleton"""
         size = (self.height, self.width)
         self.dm_img = np.full((*size,3), 50, np.uint8) # to look like of ofda images background inverted
         bin_img = np.zeros(size, np.uint8)
-        #self.dm_mask = np.zeros(size, np.float32)        
+        #if distance_map:
+        #    self.dm_mask = np.zeros(size, np.float32)        
         fibers = randint(self.fibers[0],self.fibers[1])
         waves = self.createRandomWaves(fibers)        
         for wave in waves:
@@ -531,12 +531,14 @@ class FiberSample():
             diameter = randint(self.diameters[0], self.diameters[1])            
             cv2.polylines(fiber,[wave],False,(255,255,255),diameter,cv2.LINE_8)
             self.dm_img[fiber==255] = self.AddGrayScaleFiberNoise(fiber)
-            cv2.polylines(bin_img,[wave],False,255,diameter,cv2.LINE_8)
+            cv2.polylines(bin_img,[wave],False,255,1,cv2.LINE_8)
+        #self.dm_mask = cv2.distanceTransform(bin_img,cv2.DIST_L2,3)
         self.dm_img = self.Noise(self.dm_img, 15)
-        image = rgb2gray(self.dm_img)
-        image = FiberSample.get_binary(image)   
-        skeleton = skeletonize(image)
-        self.skel_mask = binary_closing(skeleton)
+        #image = rgb2gray(self.dm_img)
+        #image = FiberSample.get_binary(image)   
+        #skeleton = skeletonize(image)
+        #self.skel_mask = binary_closing(skeleton)
+        self.skel_mask = bin_img
     
     def saveSampleAndSkeleton(self, imgs_dir, masks_dir, index, extension='png'):
         '''
