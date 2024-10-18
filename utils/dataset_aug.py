@@ -115,7 +115,7 @@ class OfdaDataset(Dataset):
         return {
             'image': img, #torch.from_numpy(img).type(torch.FloatTensor),
             #'mask': torch.from_numpy(mask).type(torch.FloatTensor),
-            'mask': mask,
+            'mask': mask.type(torch.FloatTensor),
             'path': img_file[0]
         }
 

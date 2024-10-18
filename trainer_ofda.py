@@ -14,23 +14,23 @@ from utils.dataset_aug import OfdaDataset
 from utils.dataset import BasicDataset
 
 from training_functions import get_device
-
-import matplotlib.pyplot as plt
+import random
+# import matplotlib.pyplot as plt
 
 def show(name, img):
     #npimg = img.numpy()
     #plt.figure()
     #plt.imsave('tmp-test-tfs-'+name+'.png', np.transpose(npimg, (1,2,0)))
-    plt.imsave('tmp-test-tfs-'+name+'.png', img.permute(1,2,0), cmap='gray')
+    # plt.imsave('tmp-test-tfs-'+name+'.png', img.permute(1,2,0), cmap='gray')
+    pass
 
 class Trainer:
-
     def __init__(self, net, device, test_ofda_subset=False):
         self.net = net
         self.device = device
 
-        img_path = "/home/aalejo/proyectos/skeletonize/datasets/ofda/train/images/"
-        gt_path = "/home/aalejo/proyectos/skeletonize/datasets/ofda/train/masks/"
+        img_path = "./datasets/ofda/train/images/"
+        gt_path = "./datasets/ofda/train/masks/"
         
         geometric_augs = [
             transforms.CenterCrop(size=(189,189)),
@@ -55,14 +55,21 @@ class Trainer:
 
         self.dataset = OfdaDataset(imgs_dir = img_path, masks_dir = gt_path, transforms=[transform_input, transform_target], mask_h5=False)
     
-        syn_img_path = "/home/aalejo/proyectos/skeletonize/datasets/simulated/train/images/"
-        syn_gt_path = "/home/aalejo/proyectos/skeletonize/datasets/simulated/train/masks/"
+        syn_img_path = "./datasets/simulated/train/images/"
+        syn_gt_path = "./datasets/simulated/train/masks/"
         
         transform_input = Trainer.make_tfs(geometric_augs + color_augs, normalize=True, mean=[0.190, 0.190, 0.190],std=[0.283, 0.283, 0.283])
 
         self.syn_dataset = OfdaDataset(imgs_dir = syn_img_path, masks_dir = syn_gt_path, transforms=[transform_input, transform_target], mask_h5=False)
         
         self.fused_dataset = torch.utils.data.ConcatDataset([self.syn_dataset, self.dataset])
+
+        r = random.randint(0, len(self.fused_dataset))
+        print(self.fused_dataset[r]['image'].shape)
+        print(self.fused_dataset[r]['mask'].shape)
+        print(self.fused_dataset[r]['image'].dtype)
+        print(self.fused_dataset[r]['mask'].dtype)
+        print(self.fused_dataset[r]['path'])
         
         val_percent = 0.2
         batch_size = 4
@@ -77,7 +84,6 @@ class Trainer:
         # self.train_data_loader = self.__get_train_data_loader()
         # self.val_data_loader = self.__get_val_data_loader()
         self.test_ofda_subset = test_ofda_subset
-        
         
         self.__init_test_dataset(batch_size=batch_size)
 
@@ -95,14 +101,14 @@ class Trainer:
         std=[0.283, 0.283, 0.283]
         invert = 0
         if self.test_ofda_subset:
-            test_img_path = "/home/aalejo/proyectos/skeletonize/datasets/ofda/test/images/"
-            test_gt_path = "/home/aalejo/proyectos/skeletonize/datasets/ofda/test/masks/"
+            test_img_path = "./datasets/ofda/test/images/"
+            test_gt_path = "./datasets/ofda/test/masks/"
             invert = 1
             mean=[0.726, 0.726, 0.726]
             std=[0.201, 0.201, 0.201]
         else:
-            test_img_path = "/home/aalejo/proyectos/dmnet/datasets/synthetic/test3/images/"
-            test_gt_path = "/home/aalejo/proyectos/dmnet/datasets/synthetic/test3/masks/"
+            test_img_path = "./datasets/synthetic/test3/images/"
+            test_gt_path = "./datasets/synthetic/test3/masks/"
 
         trans_input = transforms.Compose([
             transforms.CenterCrop(size=(189,189)),

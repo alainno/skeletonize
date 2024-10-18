@@ -14,6 +14,7 @@ from training_functions import get_args, get_device
 from trainer_ofda import Trainer
 
 from datetime import date, datetime
+import os
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet and SkeletonNet on images and target masks')
@@ -28,7 +29,11 @@ def get_args():
 def build_model_output_path(args):
     year, month, day = str(date.today()).split('-')
     now = datetime.now()
-    return f"./checkpoints/{year}/{month}/{day}/model_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}_t{now.strftime('%H%M%S')}.pth"
+    path = f"./checkpoints/{year}/{month}/{day}/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    checkpoint_name = f"model_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}_t{now.strftime('%H%M%S')}.pth"
+    return os.path.join(path, checkpoint_name)
 
 if __name__ == '__main__':
     
@@ -54,9 +59,7 @@ if __name__ == '__main__':
     net.to(device=device)
     
     optimizer = torch.optim.Adam(net.parameters(), lr=10**-(args.lr_i), weight_decay=5*(10**-(args.wd_i)))
-    
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.96)
-    
     # trainer = Trainer(net, device, test_ofda_subset=(args.testing_subset == "ofda"))
     trainer = Trainer(net, device, test_ofda_subset=True)
     
