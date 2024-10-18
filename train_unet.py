@@ -53,7 +53,8 @@ if __name__ == '__main__':
     net = UNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features)
 
     #criterion = {'mae':torch.nn.L1Loss(), 'mse':torch.nn.MSELoss(), 'smooth':torch.nn.SmoothL1Loss()}
-    criterion = {'mae':torch.nn.CrossEntropyLoss()}
+    # criterion = {'mae':torch.nn.CrossEntropyLoss()}
+    criterion = {'mae':torch.nn.BCELoss()}
     
     device = get_device()
     net.to(device=device)
