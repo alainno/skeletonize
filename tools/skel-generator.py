@@ -22,7 +22,8 @@ class Skeleton:
         binary = img > thresh
         skeleton = skeletonize(binary)
         skeleton = binary_closing(skeleton)
-        skeleton = img_as_uint(skeleton)
+        # skeleton = img_as_uint(skeleton)
+        skeleton = skeleton.astype(np.uint8) * 255
         try:
             ioo.imsave(fname=dst, arr=skeleton)    
             # return cv2.imwrite(dst, dm_img)
@@ -34,10 +35,11 @@ class Skeleton:
         print(src_dir)
         for filename in glob.glob(os.path.join(src_dir,"*.png")):
             basename = os.path.basename(filename)
-            [prefix,id] = basename.split("_")
-            print(prefix, id)
-            source = os.path.join(seg_dir, id)
-            print(source)
+            #[prefix,id] = basename.split("_")
+            #print(prefix, id)
+            #source = os.path.join(seg_dir, id)
+            source = os.path.join(seg_dir, basename)
+            #print(source)
             if not self.save(source, os.path.join(dst_dir, basename)):
                 return False
         return True
@@ -62,9 +64,18 @@ class TestSkeletons(unittest.TestCase):
         base_path = os.path.join(cur_dir, '..', 'datasets', 'ofda')
         src_dir = os.path.join(base_path, 'train', 'images')
         dst_dir = os.path.join(base_path, 'train', 'masks')
-        seg_dir = os.path.join(base_path, 'cropped', 'cropped', 'exported', 'g1')
+        seg_dir = os.path.join(base_path, 'train', 'segments')
         skel = Skeleton()
         self.assertEqual(skel.create_batch(src_dir, dst_dir, seg_dir), True, "creación satisfactoria")
+
+    #def test_batch(self):
+    #    cur_dir = os.path.dirname(os.path.realpath(__file__))
+    #    base_path = os.path.join(cur_dir, '..', 'datasets', 'ofda')
+    #    src_dir = os.path.join(base_path, 'test', 'images')
+    #    dst_dir = os.path.join(base_path, 'test', 'masks')
+    #    seg_dir = os.path.join(base_path, 'cropped', 'cropped', 'exported', 'g1')
+    #    skel = Skeleton()
+    #    self.assertEqual(skel.create_batch(src_dir, dst_dir, seg_dir), True, "creación satisfactoria")
         
 if __name__ == "__main__":
     unittest.main()

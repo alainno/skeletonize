@@ -64,12 +64,12 @@ class Trainer:
         
         self.fused_dataset = torch.utils.data.ConcatDataset([self.syn_dataset, self.dataset])
 
-        r = random.randint(0, len(self.fused_dataset))
-        print(self.fused_dataset[r]['image'].shape)
-        print(self.fused_dataset[r]['mask'].shape)
-        print(self.fused_dataset[r]['image'].dtype)
-        print(self.fused_dataset[r]['mask'].dtype)
-        print(self.fused_dataset[r]['path'])
+        # r = random.randint(0, len(self.fused_dataset))
+        # print(self.fused_dataset[r]['image'].shape)
+        # print(self.fused_dataset[r]['mask'].shape)
+        # print(self.fused_dataset[r]['image'].dtype)
+        # print(self.fused_dataset[r]['mask'].dtype)
+        # print(self.fused_dataset[r]['path'])
         
         val_percent = 0.2
         batch_size = 4
@@ -107,8 +107,8 @@ class Trainer:
             mean=[0.726, 0.726, 0.726]
             std=[0.201, 0.201, 0.201]
         else:
-            test_img_path = "./datasets/synthetic/test3/images/"
-            test_gt_path = "./datasets/synthetic/test3/masks/"
+            test_img_path = "./datasets/simulated/test/images/"
+            test_gt_path = "./datasets/simulated/test/masks/"
 
         trans_input = transforms.Compose([
             transforms.CenterCrop(size=(189,189)),
@@ -252,21 +252,20 @@ class Trainer:
                 total_time += (time.time() - start_time)
                 
                 ######## avoid image ####
-                if "g1_0234" in batch['path'][0]:
-                    print("*** ", output.shape)
-                    a = output.detach().cpu().numpy()[0].squeeze()
-                    print("***", np.mean(a), np.std(a))
+                # if "g1_0234" in batch['path'][0]:
+                #     print("*** ", output.shape)
+                #     a = output.detach().cpu().numpy()[0].squeeze()
+                #     print("***", np.mean(a), np.std(a))
                     
-                    b = groundtruth.detach().cpu().numpy()[0].squeeze()
-                    print("***", np.mean(b), np.std(b))
+                #     b = groundtruth.detach().cpu().numpy()[0].squeeze()
+                #     print("***", np.mean(b), np.std(b))
                     
-                    c = input.detach().cpu().numpy()[0].squeeze()
-                    print("***", np.mean(c), np.std(c))
-                    continue
+                #     c = input.detach().cpu().numpy()[0].squeeze()
+                #     print("***", np.mean(c), np.std(c))
+                #     continue
 
                 #print(output.shape)
                 loss = criterion(output, groundtruth)
-
                 loss2 = criterion2(output, groundtruth)
 
                 mae,mse = 0,0
@@ -292,19 +291,18 @@ class Trainer:
         if printlog:
             print(f'Execution time: {total_time}')
         
-
+        print('len slef test data loader:', len(self.test_data_loader))
+        # print('len test loader:', len(test_loader))
         test_loss /= len(self.test_data_loader)
         #return test_loss, maes/len(test_loader)
-        #return test_loss, test_loss2 / len(test_loader)
-        return test_loss, mses / len(self.test_data_loader)
-    
+        # return test_loss, test_loss2 / len(test_loader)
+        # return test_loss, mses / len(self.test_data_loader)
+        return test_loss, test_loss2 / len(self.test_data_loader)
 
     def test_output(self, batch_size=4, printlog=False, batch=None):
         if printlog:
             print("Iniciando el testing...")
-
         #self.__init_test_dataset(batch_size=batch_size)
-
         if printlog:
             print(f'{len(self.test_data_loader)} test batches of {batch_size} samples loaded')
 

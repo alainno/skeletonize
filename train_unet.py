@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     #criterion = {'mae':torch.nn.L1Loss(), 'mse':torch.nn.MSELoss(), 'smooth':torch.nn.SmoothL1Loss()}
     # criterion = {'mae':torch.nn.CrossEntropyLoss()}
-    criterion = {'mae':torch.nn.BCELoss()}
+    criterion = {'mae':torch.nn.BCEWithLogitsLoss()}
     
     device = get_device()
     net.to(device=device)
