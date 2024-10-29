@@ -42,7 +42,8 @@ if __name__=='__main__':
     print('Testing Subset:', args.testing_subset)
     
     if args.architecture == 'unet':
-        checkpoint = f'./checkpoints/{args.year}/{args.month}/{args.day}/model_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}_t{args.hour}.pth'
+        # checkpoint = f'./checkpoints/{args.year}/{args.month}/{args.day}/model_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}_t{args.hour}.pth'
+        checkpoint = f'./checkpoints/model_unet_dice_32_3_6_20241026_115652.pth'
         net = UNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features)
     elif args.architecture == 'skeleton':
         if args.ensemble_type == 'inner':

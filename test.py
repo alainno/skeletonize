@@ -14,10 +14,12 @@ from unet import UNet
 from trainer_ofda import Trainer
 from training_functions import get_device
 
+import os
+
 def get_args():
     parser = argparse.ArgumentParser(description='Test the UNet and SkeletonNet')
     parser.add_argument('-a', '--architecture', type=str, choices=["unet","skeleton"], default="unet", help='Architecture UNet or SkeletonNet')
-    parser.add_argument('-l', '--loss', type=str, choices=["mae","mse",'smooth'], default="mae", help='Train Loss function')
+    parser.add_argument('-l', '--loss', type=str, choices=["bce","dice"], default="bce", help='Train Loss function')
     parser.add_argument('-nf', '--n_features', type=int, choices=[16,32,64], default=32, help='UNet 1st convolution features')
     parser.add_argument('-lri', '--lr_i', type=int, choices=[2,3,4,5,6], default=3, help='Learning Rate 10**i')
     parser.add_argument('-wdi', '--wd_i', type=int, choices=[3,4,5,6], default=6, help='Loss function')
@@ -25,21 +27,74 @@ def get_args():
     parser.add_argument('-ts', '--testing_subset', type=str, choices=["synthetic","ofda"], default="synthetic", help='testing subset')
     return parser.parse_args()
 
-if __name__=='__main__':
-    
+# Function to get filenames from a specified directory
+def list_files_in_directory(directory_path):
+    try:
+        # List all files in the specified directory
+        files = os.listdir(directory_path)
+        
+        # Filter out only files (not directories) and return their names
+        filenames = [f for f in files if os.path.isfile(os.path.join(directory_path, f))]
+        
+        return filenames
+    except FileNotFoundError:
+        print("The specified directory was not found.")
+        return []
+    except PermissionError:
+        print("Permission denied to access the specified directory.")
+        return []
+
+# Function to display files with numbers and allow the user to select one
+def select_file_from_list(filenames):
+    # Display files with index numbers
+    print("Files in directory:")
+    for idx, file in enumerate(filenames):
+        print(f"{idx + 1}. {file}")
+
+    # Prompt the user to select a file by entering a number
+    while True:
+        try:
+            choice = int(input("Enter the number of the file you want to select: ")) - 1
+            
+            # Check if the choice is within the valid range
+            if 0 <= choice < len(filenames):
+                selected_file = filenames[choice]
+                print(f"You selected: {selected_file}")
+                return selected_file
+            else:
+                print("Invalid number. Please enter a number from the list.")
+        except ValueError:
+            print("Invalid input. Please enter a valid number.")
+
+if __name__=='__main__': 
     args = get_args()
+
+    # Specify the directory path
+    directory_path = "./checkpoints"
+    
+    # Get list of files
+    filenames = list_files_in_directory(directory_path)
+    
+    # Select a file if the list is not empty
+    if filenames:
+        selected_file = select_file_from_list(filenames)
+    else:
+        print("No files found in the directory.")
+        exit()
+        
+    # parse select_file to get hyperparameters
     
     print('Test Hyperparameters:')
     print('-'*20)
     print('Architecture:', args.architecture)
     print('Train Loss:', args.loss)
-    print('Testing Subset:', args.testing_subset)
-    
-   
+    print('Testing Subset:', args.testing_subset)    
+
     if args.architecture == 'unet':
         net = UNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features)
         # checkpoint = f'checkpoints/model3_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}.pth'
-        checkpoint = "./checkpoints/2024/10/18/model_unet_mae_32_3_6_t180631.pth"
+        # checkpoint = "./checkpoints/2024/10/18/model_unet_mae_32_3_6_t180631.pth"
+        checkpoint = f"./checkpoints/{selected_file}"
     # elif args.architecture == 'skeleton':
     #     if args.ensemble_type == 'inner':
     #         net = HedNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features, use_cuda=1)
@@ -56,9 +111,9 @@ if __name__=='__main__':
     trainer = Trainer(net, device, test_ofda_subset=(args.testing_subset == "ofda"))
     #trainer.load_test_dataset(img_path, gt_path)       
     trainer.net.load_state_dict(torch.load(checkpoint, map_location=device))
-    mae, mse = trainer.test(batch_size=1, printlog=True)
-    print('MAE:', mae)
-    print('MSE:', mse)
+    pixel_acc, dice_coef = trainer.test(batch_size=1, printlog=True)
+    print('Pixel accuracy:', pixel_acc)
+    print('Dice coefficient:', dice_coef)
     
     # save results
     # if args.testing_subset == "ofda":

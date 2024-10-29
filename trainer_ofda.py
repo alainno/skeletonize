@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 import torchvision
@@ -11,7 +12,8 @@ import time
 from unet import UNet
 # from hednet import HedNet
 from utils.dataset_aug import OfdaDataset
-from utils.dataset import BasicDataset
+# from utils.dataset import BasicDataset
+from utils.dice_bce_loss import DiceBCELoss
 
 from training_functions import get_device
 import random
@@ -228,8 +230,10 @@ class Trainer:
         if printlog:
             print(f'{len(self.test_data_loader)} test batches of {batch_size} samples loaded')
 
-        criterion = nn.L1Loss()
-        criterion2 = nn.MSELoss()
+        # criterion = nn.L1Loss()
+        criterion = nn.BCEWithLogitsLoss()
+        # criterion2 = nn.MSELoss()
+        criterion2 = DiceBCELoss()
 
         self.net.eval()
 
@@ -244,6 +248,7 @@ class Trainer:
             groundtruth = groundtruth.to(device=self.device, dtype=torch.float32)
             
             if printlog:
+                # print(torch.unique(groundtruth[0]))
                 print(f"path:{batch['path']}")
 
             with torch.no_grad():
@@ -263,6 +268,8 @@ class Trainer:
                 #     c = input.detach().cpu().numpy()[0].squeeze()
                 #     print("***", np.mean(c), np.std(c))
                 #     continue
+                # if printlog:
+                #     print(torch.unique(output[0]))
 
                 #print(output.shape)
                 loss = criterion(output, groundtruth)
@@ -292,7 +299,6 @@ class Trainer:
             print(f'Execution time: {total_time}')
         
         print('len slef test data loader:', len(self.test_data_loader))
-        # print('len test loader:', len(test_loader))
         test_loss /= len(self.test_data_loader)
         #return test_loss, maes/len(test_loader)
         # return test_loss, test_loss2 / len(test_loader)
@@ -317,8 +323,10 @@ class Trainer:
 
         with torch.no_grad():
             output = self.net(inputs)
+            output = F.sigmoid(output)
+            binary_output = (output>0.5).float()
 
-        return inputs.cpu(), groundtruth.cpu(), output.cpu()
+        return inputs.cpu(), groundtruth.cpu(), binary_output.cpu()
     
     
 if __name__ == '__main__':

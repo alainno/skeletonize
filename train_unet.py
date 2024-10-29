@@ -15,10 +15,11 @@ from trainer_ofda import Trainer
 
 from datetime import date, datetime
 import os
+from utils.dice_bce_loss import DiceBCELoss
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet and SkeletonNet on images and target masks')
-    parser.add_argument('-l', '--loss', type=str, choices=["mae","mse",'smooth'], default="mae", help='Loss function')
+    parser.add_argument('-l', '--loss', type=str, choices=["bce","dice"], default="bce", help='Loss function')
     parser.add_argument('-nf', '--n_features', type=int, choices=[16,32,64], default=32, help='UNet 1st convolution features')
     parser.add_argument('-lri', '--lr_i', type=int, choices=[2,3,4,5,6], default=3, help='Learning Rate 10**i')
     parser.add_argument('-wdi', '--wd_i', type=int, choices=[3,4,5,6], default=6, help='Weight decay')
@@ -27,12 +28,12 @@ def get_args():
     return parser.parse_args()
 
 def build_model_output_path(args):
-    year, month, day = str(date.today()).split('-')
+    # year, month, day = str(date.today()).split('-')
     now = datetime.now()
-    path = f"./checkpoints/{year}/{month}/{day}/"
-    if not os.path.exists(path):
-        os.makedirs(path)
-    checkpoint_name = f"model_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}_t{now.strftime('%H%M%S')}.pth"
+    path = "./checkpoints"
+    # if not os.path.exists(path):
+    #     os.makedirs(path)
+    checkpoint_name = f"model_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}_{now.strftime('%Y%m%d_%H%M%S')}.pth"
     return os.path.join(path, checkpoint_name)
 
 if __name__ == '__main__':
@@ -52,9 +53,7 @@ if __name__ == '__main__':
         
     net = UNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features)
 
-    #criterion = {'mae':torch.nn.L1Loss(), 'mse':torch.nn.MSELoss(), 'smooth':torch.nn.SmoothL1Loss()}
-    # criterion = {'mae':torch.nn.CrossEntropyLoss()}
-    criterion = {'mae':torch.nn.BCEWithLogitsLoss()}
+    criterion = {'bce':torch.nn.BCEWithLogitsLoss(),'dice':DiceBCELoss()}
     
     device = get_device()
     net.to(device=device)
