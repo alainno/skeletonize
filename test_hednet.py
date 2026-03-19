@@ -1,16 +1,13 @@
 import argparse
 import torch
 import torch.nn as nn
-from utils.dataset import BasicDataset
+# from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import numpy as np
 
-from unet import UNet
-# from hednet import HedNet
-# from hednet import EnsembleSkeletonNet
-
-#from trainer import Trainer
+# from unet_skel import UNetSkeleton
+from hednet import HedNet
 from trainer_ofda import Trainer
 from training_functions import get_device
 
@@ -19,7 +16,7 @@ import os
 def get_args():
     parser = argparse.ArgumentParser(description='Test the UNet and SkeletonNet')
     parser.add_argument('-a', '--architecture', type=str, choices=["unet","skeleton"], default="unet", help='Architecture UNet or SkeletonNet')
-    parser.add_argument('-l', '--loss', type=str, choices=["bce","dice"], default="bce", help='Train Loss function')
+    parser.add_argument('-l', '--loss', type=str, choices=["bce","dice","focal"], default="bce", help='Train Loss function')
     parser.add_argument('-nf', '--n_features', type=int, choices=[16,32,64], default=32, help='UNet 1st convolution features')
     parser.add_argument('-lri', '--lr_i', type=int, choices=[2,3,4,5,6], default=3, help='Learning Rate 10**i')
     parser.add_argument('-wdi', '--wd_i', type=int, choices=[3,4,5,6], default=6, help='Loss function')
@@ -34,7 +31,7 @@ def list_files_in_directory(directory_path):
         files = os.listdir(directory_path)
         
         # Filter out only files (not directories) and return their names
-        filenames = [f for f in files if os.path.isfile(os.path.join(directory_path, f))]
+        filenames = [f for f in files if os.path.isfile(os.path.join(directory_path, f)) and "hednet" in f]
         
         return filenames
     except FileNotFoundError:
@@ -90,33 +87,14 @@ if __name__=='__main__':
     print('Train Loss:', args.loss)
     print('Testing Subset:', args.testing_subset)    
 
-    if args.architecture == 'unet':
-        net = UNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features)
-        # checkpoint = f'checkpoints/model3_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}.pth'
-        # checkpoint = "./checkpoints/2024/10/18/model_unet_mae_32_3_6_t180631.pth"
-        checkpoint = f"./checkpoints/{selected_file}"
-    # elif args.architecture == 'skeleton':
-    #     if args.ensemble_type == 'inner':
-    #         net = HedNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features, use_cuda=1)
-    #     if args.ensemble_type == 'outer':
-    #         model1 = HedNet(n_channels=3, n_classes=1, bilinear=False, side=0, n_features=32)
-    #         model2 = HedNet(n_channels=3, n_classes=1, bilinear=False, side=4, n_features=32)
-    #         net = EnsembleSkeletonNet(model1, model2)
-    #     checkpoint = f"checkpoints/model3_snet_{args.ensemble_type}_{args.loss}.pth"
+    # net = UNetSkeleton(in_channels=3, out_channels=1, base_ch=args.n_features)
+    net = HedNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features)
+    checkpoint = f"./checkpoints/{selected_file}"
         
     device = get_device()
     print(f'Using {device} as device')
     net.to(device=device)
     
-    trainer = Trainer(net, device, test_ofda_subset=(args.testing_subset == "ofda"))
-    #trainer.load_test_dataset(img_path, gt_path)       
+    trainer = Trainer(net, device, test_ofda_subset=(args.testing_subset == "ofda"), pad=True)     
     trainer.net.load_state_dict(torch.load(checkpoint, map_location=device))
-    # pixel_acc, dice_coef = trainer.test(batch_size=1, printlog=True)
     pixel_acc, dice_coef, iou_coef = trainer.test(batch_size=1, printlog=True)
-    # print('Pixel accuracy:', pixel_acc)
-    # print('Dice coefficient:', dice_coef)
-    
-    # save results
-    # if args.testing_subset == "ofda":
-    #     with open("resultados/testing2_ofda.csv",'a') as file_log:
-    #         file_log.write(f'{args.architecture},{checkpoint},{args.loss},{mae},{mse}\n')

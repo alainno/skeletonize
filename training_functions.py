@@ -1,5 +1,6 @@
 import torch
 import argparse
+import matplotlib.pyplot as plt
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet and SkeletonNet on images and target masks')
@@ -17,3 +18,23 @@ def get_device():
     elif torch.backends.mps.is_available():
         device = "mps"
     return device
+
+def plot_losses(train_losses, val_losses, loss_name="Loss", save_name=""):
+    if len(train_losses)!=len(val_losses):
+        print("Error, both lists should have equal number of items")
+    else:
+        plt.figure()
+        plt.plot(train_losses, label='Train loss')
+        plt.plot(val_losses, label='Validation loss')
+        plt.xticks(range(len(train_losses))) 
+        plt.legend()
+        plt.xlabel("Epoch")
+        plt.ylabel(loss_name)
+        plt.tight_layout()
+        epochs = list(range(0,len(train_losses)))
+        plt.xticks(epochs[::10])
+        if save_name:
+            plt.savefig(save_name)
+            plt.close()
+        else:
+            plt.show()

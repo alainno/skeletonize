@@ -4,7 +4,8 @@ import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 import torchvision
-from torchvision import transforms
+import torchvision.transforms.v2 as transforms
+# from torchvision import transforms
 from torch.utils.data import DataLoader, random_split
 import argparse
 import time
@@ -13,7 +14,7 @@ from unet import UNet
 # from hednet import HedNet
 from utils.dataset_aug import OfdaDataset
 # from utils.dataset import BasicDataset
-from utils.dice_bce_loss import DiceBCELoss
+from utils.dice_bce_loss import DiceBCELoss, dice_coefficient, pixel_accuracy, iou_score
 
 from training_functions import get_device
 import random
@@ -27,9 +28,10 @@ def show(name, img):
     pass
 
 class Trainer:
-    def __init__(self, net, device, test_ofda_subset=False):
+    def __init__(self, net, device, test_ofda_subset=False, pad=False):
         self.net = net
         self.device = device
+        self.pad = pad
 
         img_path = "./datasets/ofda/train/images/"
         gt_path = "./datasets/ofda/train/masks/"
@@ -42,6 +44,9 @@ class Trainer:
             transforms.RandomRotation(degrees=(180,180)),
             transforms.RandomRotation(degrees=(270,270))
         ]
+
+        if self.pad:
+            geometric_augs += [transforms.Pad((1,1,2,2))]            
 
         color_augs = [
             #transforms.RandomInvert(1),
@@ -124,6 +129,10 @@ class Trainer:
             transforms.ToTensor()
         ])
 
+        if self.pad:
+            trans_input.transforms.append(transforms.Pad((1,1,2,2)))
+            trans_target.transforms.append(transforms.Pad((1,1,2,2)))
+
         #test_dataset = BasicDataset(imgs_dir = test_img_path, masks_dir = test_gt_path, transforms=trans, mask_h5=True)
         self.test_dataset = OfdaDataset(imgs_dir = test_img_path, masks_dir = test_gt_path, transforms=[trans_input,trans_target], mask_h5=False)
         
@@ -142,6 +151,8 @@ class Trainer:
                 input,ground_truth = batch['image'],batch['mask']
                 input = input.to(device=self.device, dtype=torch.float32)
                 ground_truth = ground_truth.to(device=self.device, dtype=torch.float32)
+
+                #print(ground_truth.shape)
                 
                 output = self.net(input)
                 
@@ -203,8 +214,11 @@ class Trainer:
 
             val_loss = self.__validate(epoch)
             val_losses.append(val_loss)
-            
-            self.scheduler.step() # para StepLR cada step_size
+
+            if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                self.scheduler.step(val_loss)
+            else:
+                self.scheduler.step() # para StepLR cada step_size
 
             if val_loss < min_val_loss:
                 min_val_loss = val_loss
@@ -215,11 +229,9 @@ class Trainer:
                 if epochs_without_improve > max_epochs_without_improve:
                     print("Early stopping!")
                     break
-
-        # print(min_val_loss)
-        #return min(train_losses),min(val_losses)
         print("Min Training Loss:", min(train_losses))
         print("Min Validation Loss:", min(val_losses))
+        return train_losses,val_losses
         
     def test(self, batch_size=4, printlog=False):
         if printlog:
@@ -230,15 +242,12 @@ class Trainer:
         if printlog:
             print(f'{len(self.test_data_loader)} test batches of {batch_size} samples loaded')
 
-        # criterion = nn.L1Loss()
-        criterion = nn.BCEWithLogitsLoss()
-        # criterion2 = nn.MSELoss()
-        criterion2 = DiceBCELoss()
+        # criterion = nn.BCEWithLogitsLoss()
+        # criterion2 = DiceBCELoss(only_dice=True)
 
         self.net.eval()
 
-        test_loss, test_loss2 = 0, 0
-        maes, mses = 0, 0
+        total_acc, total_dice, total_iou = 0, 0, 0
         
         total_time = 0
         
@@ -255,67 +264,56 @@ class Trainer:
                 start_time = time.time()
                 output = self.net(input)
                 total_time += (time.time() - start_time)
-                
-                ######## avoid image ####
-                # if "g1_0234" in batch['path'][0]:
-                #     print("*** ", output.shape)
-                #     a = output.detach().cpu().numpy()[0].squeeze()
-                #     print("***", np.mean(a), np.std(a))
-                    
-                #     b = groundtruth.detach().cpu().numpy()[0].squeeze()
-                #     print("***", np.mean(b), np.std(b))
-                    
-                #     c = input.detach().cpu().numpy()[0].squeeze()
-                #     print("***", np.mean(c), np.std(c))
-                #     continue
-                # if printlog:
-                #     print(torch.unique(output[0]))
 
                 #print(output.shape)
-                loss = criterion(output, groundtruth)
-                loss2 = criterion2(output, groundtruth)
-
-                mae,mse = 0,0
-                for k in range(output.shape[0]):
-                    a = output.detach().cpu().numpy()[k].squeeze()
-                    b = groundtruth.detach().cpu().numpy()[k].squeeze()
-                    for i in range(a.shape[0]):
-                        for j in range(a.shape[1]):
-                            mae += abs(a[i][j]-b[i][j])
-                            mse += abs(a[i][j]-b[i][j])**2
-                    #mae += abs(output.detach().cpu().numpy()[i].squeeze().sum()-groundtruth.detach().cpu().numpy()[i].squeeze().sum())
-                maes += mae/(input.shape[0]*256*256)
-                mses += mse/(input.shape[0]*256*256)
-                #print('mae=',)
+                # loss = criterion(output, groundtruth)
+                # loss2 = criterion2(output, groundtruth)
+                pixel_acc = pixel_accuracy(output, groundtruth)
+                dice_score = dice_coefficient(output, groundtruth)
+                iou = iou_score(output, groundtruth)
 
             if printlog:
-                print(f'batch mae: {loss.item()}, batch mse: {loss2.item()}')
+                print(f"batch pixel acc: {pixel_acc}")
+                print(f"batch dice score: {dice_score}")
+                print(f"batch iou score: {iou}")
+
+            # if printlog:
+                # print(f'batch bce: {loss.item()}, batch dice: {loss2.item()}')
+                # print(f'batch bce: {loss.item()}, batch dice: {dice_score}')
                 
-            test_loss += loss.item()
-            test_loss2 += loss2.item()
-            #test_loss += mae / input.shape[0]
+            # test_loss += loss.item()
+            # test_loss2 += loss2.item()
+            total_acc += pixel_acc
+            total_dice += dice_score
+            total_iou += iou
         
         if printlog:
-            print(f'Execution time: {total_time}')
-        
-        print('len slef test data loader:', len(self.test_data_loader))
-        test_loss /= len(self.test_data_loader)
-        #return test_loss, maes/len(test_loader)
-        # return test_loss, test_loss2 / len(test_loader)
-        # return test_loss, mses / len(self.test_data_loader)
-        return test_loss, test_loss2 / len(self.test_data_loader)
+            print(f'* Execution time: {total_time}')
+            print(f'* Time per image: {total_time/len(self.test_data_loader)}')
+            print(f'* Images per second: {len(self.test_data_loader)/total_time}')
+            # print('* len self test data loader:', len(self.test_data_loader))
+            
+            
+        avg_acc = total_acc / len(self.test_data_loader)
+        avg_dice = total_dice / len(self.test_data_loader)
+        avg_iou = total_iou / len(self.test_data_loader)
+        if printlog:
+            print('* Pixel accuracy avg:', avg_acc)
+            print('* Dice coefficient avg:', avg_dice)
+            print('* iou coefficient avg:', avg_iou)
+        return avg_acc, avg_dice, avg_iou
 
     def test_output(self, batch_size=4, printlog=False, batch=None):
         if printlog:
             print("Iniciando el testing...")
-        #self.__init_test_dataset(batch_size=batch_size)
-        if printlog:
-            print(f'{len(self.test_data_loader)} test batches of {batch_size} samples loaded')
 
         self.net.eval()
         
         if batch is None:
+            self.__init_test_dataset(batch_size=batch_size)
             batch = next(iter(self.test_data_loader))
+            if printlog:
+                print(f'{len(self.test_data_loader)} test batches of {batch_size} samples loaded')
 
         inputs, groundtruth = batch['image'], batch['mask']
         inputs = inputs.to(device=self.device, dtype=torch.float32)
@@ -330,7 +328,6 @@ class Trainer:
     
     
 if __name__ == '__main__':
-    
     
     net = UNet(n_channels=3, n_classes=1, bilinear=False, n_features=32)
     

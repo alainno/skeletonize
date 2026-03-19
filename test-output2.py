@@ -1,6 +1,7 @@
 import argparse
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -10,8 +11,8 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 import numpy as np
 
-from unet import UNet
-# from hednet import HedNet
+from unet_skel import UNetSkeleton
+from hednet import HedNet
 # from hednet import EnsembleSkeletonNet
 
 #from trainer import Trainer
@@ -31,6 +32,7 @@ def get_args():
     parser.add_argument('-m', '--month', type=str, choices=["10"], default="", help='model creation month')
     parser.add_argument('-d', '--day', type=str, choices=["18"], default="", help='model creation day')
     parser.add_argument('-hour', '--hour', type=str, default="", help='model creation time')
+    parser.add_argument('-pad', '--pad', type=bool, default=False, help='model image padding')
     return parser.parse_args()
 
 if __name__=='__main__':
@@ -42,17 +44,17 @@ if __name__=='__main__':
     print('Testing Subset:', args.testing_subset)
     
     if args.architecture == 'unet':
-        # checkpoint = f'./checkpoints/{args.year}/{args.month}/{args.day}/model_unet_{args.loss}_{args.n_features}_{args.lr_i}_{args.wd_i}_t{args.hour}.pth'
-        checkpoint = f'./checkpoints/model_unet_dice_32_3_6_20241026_115652.pth'
-        net = UNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features)
+        checkpoint = f'./checkpoints/model_unet_focal_32_3_6_20251106_172240.pth'
+        net = UNetSkeleton(in_channels=3, out_channels=1, base_ch=args.n_features)
     elif args.architecture == 'skeleton':
         if args.ensemble_type == 'inner':
-            net = HedNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features, use_cuda=1)
+            net = HedNet(n_channels=3, n_classes=1, bilinear=False, n_features=args.n_features, use_cuda=0)
         if args.ensemble_type == 'outer':
             model1 = HedNet(n_channels=3, n_classes=1, bilinear=False, side=0, n_features=32)
             model2 = HedNet(n_channels=3, n_classes=1, bilinear=False, side=4, n_features=32)
             net = EnsembleSkeletonNet(model1, model2)
-        checkpoint = f"./checkpoints/model3_snet_{args.ensemble_type}_{args.loss}.pth"
+        # checkpoint = f"./checkpoints/model3_snet_{args.ensemble_type}_{args.loss}.pth"
+        checkpoint = f"./checkpoints/model_hednet_focal_32_3_6_20260313_171633.pth"
 
     print('Checkpoint:', checkpoint)
         
@@ -60,14 +62,18 @@ if __name__=='__main__':
     print(f'Using {device} as device')
     net.to(device=device)
     
-    trainer = Trainer(net, device, test_ofda_subset=(args.testing_subset == "ofda"))
+    trainer = Trainer(net, device, test_ofda_subset=(args.testing_subset == "ofda"), pad=args.pad)
     # trainer = Trainer(net, device, test_ofda_subset=True)
     
     trainer.net.load_state_dict(torch.load(checkpoint))
     
-    batch = next(iter(trainer.val_data_loader)) ## <--- validation
+    # batch = next(iter(trainer.val_data_loader)) ## <--- validation
+    # inputs, gt, output = trainer.test_output(batch=batch)
+    inputs, gt, output = trainer.test_output(batch_size=4)
 
-    inputs, gt, output = trainer.test_output(batch=batch)
+    ########
+    # plot #
+    ########
 
     plt.figure(figsize=(1*5,3*5))
     
@@ -76,16 +82,20 @@ if __name__=='__main__':
     
     # show micrographs
     imagen = make_grid(inputs, nrow=1, padding=0, normalize=True)
-    plt.subplot(gs[0]), plt.axis('off'), plt.title('(a)', y=-0.05), plt.imshow(imagen.permute(1,2,0))
+    raw = imagen.permute(1,2,0)
+    plt.subplot(gs[0]), plt.axis('off'), plt.title('(a)', y=-0.05), plt.imshow(raw)
     
     # show ground truth
     imagen = make_grid(gt, nrow=1, padding=0, normalize=True)
-    plt.subplot(gs[1]), plt.axis('off'), plt.title('(b)', y=-0.05), plt.imshow(imagen.permute(1,2,0))
+    gt = imagen.permute(1,2,0)
+    plt.subplot(gs[1]), plt.axis('off'), plt.title('(b)', y=-0.05), plt.imshow(gt)
     
     # show prediction
     imagen = make_grid(output, nrow=1, padding=0, normalize=True)
-    plt.subplot(gs[2]), plt.axis('off'), plt.title('(c)', y=-0.05), plt.imshow(imagen.permute(1,2,0))
+    prediction = imagen.permute(1,2,0)
+    plt.subplot(gs[2]), plt.axis('off'), plt.title('(c)', y=-0.05), plt.imshow(prediction)
 
+    timestamp = datetime.now().strftime("%Y%m%d%H%M")
     # save image
-    plt.savefig("tmp-output.png", bbox_inches='tight', pad_inches=0)
+    plt.savefig(f"./outputs/tmp-output-{timestamp}.png", bbox_inches='tight', pad_inches=0)
 #    plt.show()
